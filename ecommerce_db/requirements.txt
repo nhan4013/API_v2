@@ -5,3 +5,8 @@ python-dotenv
 psycopg2-binary
 whitenoise
 gunicorn
+scikit-surprise
+scikit-learn
+numpy
+pandas
+requests
