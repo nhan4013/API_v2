@@ -176,51 +176,45 @@ import pickle
 import os
 import zipfile
 from django.conf import settings
+from huggingface_hub import hf_hub_download
 import requests
 from API_User.models import User, Product
 
 class RecommendationService:
     def __init__(self):
-        # Extract zip file if needed
-        self.extract_data_if_needed()
-        
-        # Load models
+        self.download_models_if_needed()
         self.svdpp_model = self.load_model('svdpp_user_item_model.pkl')
         self.knn_model = self.load_model('knn_user_model.pkl')
     
-    def extract_data_if_needed(self):
-        """Extract data.zip if pickle files don't exist"""
+    def download_models_if_needed(self):
+        """Download models from Hugging Face Hub"""
         data_dir = os.path.join(settings.BASE_DIR, 'API_User', 'data')
-        zip_path = os.path.join(settings.BASE_DIR, 'data.zip')
-        
-        # Create data directory if it doesn't exist
         os.makedirs(data_dir, exist_ok=True)
         
-        # Check if pickle files already exist
-        svdpp_path = os.path.join(data_dir, 'svdpp_user_item_model.pkl')
-        knn_path = os.path.join(data_dir, 'knn_user_model.pkl')
+        repo_id = "meownamsero/product_recommend"
+        models = ['knn_user_model.pkl', 'svdpp_user_item_model.pkl']
         
-        files_exist = os.path.exists(svdpp_path) and os.path.exists(knn_path)
-        
-        # Extract zip if files don't exist and zip file is available
-        if not files_exist and os.path.exists(zip_path):
-            print(f"Extracting {zip_path} to {data_dir}")
-            try:
-                with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                    # Extract all files to data directory
-                    zip_ref.extractall(data_dir)
-                print("Data extraction completed successfully")
-                
-                # List extracted files
-                extracted_files = os.listdir(data_dir)
-                print(f"Extracted files: {extracted_files}")
-                
-            except Exception as e:
-                print(f"Error extracting zip file: {e}")
-        elif files_exist:
-            print("Model files already exist, skipping extraction")
-        else:
-            print(f"Warning: {zip_path} not found. Please ensure data.zip is in the project root.")
+        for model_name in models:
+            local_path = os.path.join(data_dir, model_name)
+            
+            if not os.path.exists(local_path):
+                print(f"Downloading {model_name} from Hugging Face Hub...")
+                try:
+                    downloaded_path = hf_hub_download(
+                        repo_id=repo_id, 
+                        filename=model_name,
+                        cache_dir=data_dir
+                    )
+                    
+                    # Move to expected location if needed
+                    import shutil
+                    shutil.copy2(downloaded_path, local_path)
+                    print(f"✅ Downloaded {model_name}")
+                    
+                except Exception as e:
+                    print(f"❌ Error downloading {model_name}: {e}")
+            else:
+                print(f"{model_name} already exists")
     
     def load_model(self, model_filename):
         """Load model from local data directory"""
