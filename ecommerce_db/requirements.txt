@@ -7,7 +7,6 @@ whitenoise
 gunicorn
 scikit-surprise
 scikit-learn
-numpy>=1.21.0,<1.25.0
 pandas
 requests
 huggingface-hub
