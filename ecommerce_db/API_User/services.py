@@ -187,96 +187,65 @@ class RecommendationService:
         self.knn_model = self.load_model('knn_user_model.pkl')
     
     def download_models_if_needed(self):
-        """Download models from Hugging Face Hub"""
+        """Download exactly 2 models from Hugging Face"""
         data_dir = os.path.join(settings.BASE_DIR, 'API_User', 'data')
         os.makedirs(data_dir, exist_ok=True)
         
-        repo_id = "meownamsero/product_recommend"
-        models = ['knn_user_model.pkl', 'svdpp_user_item_model.pkl']
+        # Direct download URLs for your 2 models
+        models = {
+            'knn_user_model.pkl': 'https://huggingface.co/meownamsero/product_recommend/resolve/main/knn_user_model.pkl',
+            'svdpp_user_item_model.pkl': 'https://huggingface.co/meownamsero/product_recommend/resolve/main/svdpp_user_item_model.pkl'
+        }
         
-        for model_name in models:
+        for model_name, url in models.items():
             local_path = os.path.join(data_dir, model_name)
             
             if not os.path.exists(local_path):
-                print(f"Downloading {model_name} from Hugging Face Hub...")
-                try:
-                    downloaded_path = hf_hub_download(
-                        repo_id=repo_id, 
-                        filename=model_name,
-                        cache_dir=data_dir
-                    )
-                    
-                    # Move to expected location if needed
-                    import shutil
-                    shutil.copy2(downloaded_path, local_path)
-                    print(f"✅ Downloaded {model_name}")
-                    
-                except Exception as e:
-                    print(f"❌ Error downloading {model_name}: {e}")
+                print(f"Downloading {model_name}...")
+                self.download_file(url, local_path)
             else:
-                print(f"{model_name} already exists")
+                print(f"✅ {model_name} already exists")
+    
+    def download_file(self, url, local_path):
+        """Download a single file"""
+        try:
+            response = requests.get(url, stream=True)
+            response.raise_for_status()
+            
+            with open(local_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=1024*1024):
+                    if chunk:
+                        f.write(chunk)
+            
+            print(f"✅ Downloaded {os.path.basename(local_path)}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Error downloading {os.path.basename(local_path)}: {e}")
+            return False
     
     def load_model(self, model_filename):
-        """Load model from local data directory"""
+        """Load model from data directory"""
         data_dir = os.path.join(settings.BASE_DIR, 'API_User', 'data')
         pkl_file_path = os.path.join(data_dir, model_filename)
         
-        # Check if file exists
         if not os.path.exists(pkl_file_path):
-            print(f"Model file not found: {pkl_file_path}")
-            
-            # Try to find the file with different names in the data directory
-            possible_files = []
-            if os.path.exists(data_dir):
-                for file in os.listdir(data_dir):
-                    if file.endswith('.pkl'):
-                        possible_files.append(file)
-                
-                if possible_files:
-                    print(f"Available pickle files: {possible_files}")
-                    
-                    # Try to match by keywords
-                    if 'svdpp' in model_filename.lower():
-                        for file in possible_files:
-                            if 'svd' in file.lower():
-                                pkl_file_path = os.path.join(data_dir, file)
-                                print(f"Using {file} for SVD++ model")
-                                break
-                    elif 'knn' in model_filename.lower():
-                        for file in possible_files:
-                            if 'knn' in file.lower():
-                                pkl_file_path = os.path.join(data_dir, file)
-                                print(f"Using {file} for KNN model")
-                                break
-            
-            if not os.path.exists(pkl_file_path):
-                print(f"Could not find suitable model file for {model_filename}")
-                return None
+            print(f"❌ Model file not found: {model_filename}")
+            return None
         
         try:
-            file_size = os.path.getsize(pkl_file_path)
-            print(f"Loading {model_filename} (size: {file_size} bytes)")
-            
-            # Validate file before loading
             with open(pkl_file_path, 'rb') as f:
-                first_bytes = f.read(20)
-                f.seek(0)  # Reset file pointer
-                
-                # Check if it's a valid pickle file
-                if first_bytes.startswith(b'<') or b'<html' in first_bytes.lower():
-                    print(f"Error: {model_filename} appears to be HTML, not a pickle file")
-                    return None
-                
-                # Load the model
                 model = pickle.load(f)
             
-            print(f"{model_filename} loaded successfully")
-            print(f"Model type: {type(model)}")
+            print(f"✅ {model_filename} loaded successfully")
             return model
             
         except Exception as e:
-            print(f"Error loading {model_filename}: {e}")
+            print(f"❌ Error loading {model_filename}: {e}")
             return None
+    
+    
+    
     def get_personalized_recommendations(self, user_id, num_recommendations=10):
         """Use SVD++ for personalized recommendations"""
         return self._predict_with_model(self.svdpp_model, user_id, num_recommendations)
