@@ -1,2 +1,2 @@
-web: API_User/setup_volume.py
 web: gunicorn ecommerce_db.wsgi --log-file -
+web: python API_User/setup_volume.py && python API_User/main.py
