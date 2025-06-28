@@ -11,3 +11,4 @@ numpy<2
 pandas
 requests
 huggingface-hub
+django-cors-headers
