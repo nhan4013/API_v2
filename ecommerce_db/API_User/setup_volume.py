@@ -46,6 +46,7 @@ def download_file(url, output_path):
         
     except Exception as e:
         print(f"❌ Error downloading {os.path.basename(output_path)}: {e}")
+        temp_path = output_path + '.tmp'
         if os.path.exists(temp_path):
             os.remove(temp_path)
         return False
@@ -100,6 +101,27 @@ def setup_models():
             print(f"✅ {model_name} setup complete")
     
     print("\n🎉 Model setup completed!")
+    
 
+
+def test_volume():
+    """Test if Railway volume is accessible"""
+    volume_path = '/data'
+    print(f"Volume exists: {os.path.exists(volume_path)}")
+    print(f"Volume writable: {os.access(volume_path, os.W_OK) if os.path.exists(volume_path) else False}")
+    
+    if os.path.exists(volume_path):
+        try:
+            test_file = os.path.join(volume_path, 'test.txt')
+            with open(test_file, 'w') as f:
+                f.write('test')
+            os.remove(test_file)
+            print("✅ Volume write test successful")
+        except Exception as e:
+            print(f"❌ Volume write test failed: {e}")
+
+# Add this to the end of your file for testing
 if __name__ == "__main__":
+    test_volume()
     setup_models()
+    
