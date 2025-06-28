@@ -186,10 +186,26 @@ class RecommendationService:
         self.svdpp_model = self.load_model('svdpp_user_item_model.pkl')
         self.knn_model = self.load_model('knn_user_model.pkl')
     
-    def download_models_if_needed(self):
-        """Download exactly 2 models from Hugging Face"""
-        data_dir = os.path.join(settings.BASE_DIR, 'API_User', 'data')
+    def get_data_directory(self):
+        """Get the appropriate data directory based on environment"""
+        # Check if we're on Railway with volume mount
+        railway_volume_path = '/data'
+        
+        if os.path.exists(railway_volume_path) and os.access(railway_volume_path, os.W_OK):
+            # We're on Railway with volume mount
+            data_dir = os.path.join(railway_volume_path, 'models')
+            print(f"Using Railway volume: {data_dir}")
+        else:
+            # Local development or Railway without volume
+            data_dir = os.path.join(settings.BASE_DIR, 'API_User', 'data')
+            print(f"Using local directory: {data_dir}")
+        
         os.makedirs(data_dir, exist_ok=True)
+        return data_dir
+    
+    def download_models_if_needed(self):
+        """Download exactly 2 models from Hugging Face to volume"""
+        data_dir = self.get_data_directory()
         
         # Direct download URLs for your 2 models
         models = {
@@ -201,23 +217,32 @@ class RecommendationService:
             local_path = os.path.join(data_dir, model_name)
             
             if not os.path.exists(local_path):
-                print(f"Downloading {model_name}...")
+                print(f"Downloading {model_name} to volume...")
                 self.download_file(url, local_path)
             else:
-                print(f"✅ {model_name} already exists")
+                print(f"✅ {model_name} already exists in volume")
     
     def download_file(self, url, local_path):
-        """Download a single file"""
+        """Download a single file with progress tracking"""
         try:
+            print(f"Starting download to: {local_path}")
             response = requests.get(url, stream=True)
             response.raise_for_status()
             
+            total_size = int(response.headers.get('content-length', 0))
+            downloaded = 0
+            
             with open(local_path, 'wb') as f:
-                for chunk in response.iter_content(chunk_size=1024*1024):
+                for chunk in response.iter_content(chunk_size=1024*1024):  # 1MB chunks
                     if chunk:
                         f.write(chunk)
+                        downloaded += len(chunk)
+                        if total_size > 0:
+                            progress = (downloaded / total_size) * 100
+                            print(f"Download progress for {os.path.basename(local_path)}: {progress:.1f}%")
             
-            print(f"✅ Downloaded {os.path.basename(local_path)}")
+            file_size = os.path.getsize(local_path) / (1024*1024)  # MB
+            print(f"✅ Downloaded {os.path.basename(local_path)} ({file_size:.1f} MB)")
             return True
             
         except Exception as e:
@@ -225,26 +250,48 @@ class RecommendationService:
             return False
     
     def load_model(self, model_filename):
-        """Load model from data directory"""
-        data_dir = os.path.join(settings.BASE_DIR, 'API_User', 'data')
+        """Load model from volume directory"""
+        data_dir = self.get_data_directory()
         pkl_file_path = os.path.join(data_dir, model_filename)
         
         if not os.path.exists(pkl_file_path):
-            print(f"❌ Model file not found: {model_filename}")
+            print(f"❌ Model file not found: {pkl_file_path}")
             return None
         
         try:
+            file_size = os.path.getsize(pkl_file_path) / (1024*1024)  # MB
+            print(f"Loading {model_filename} from volume ({file_size:.1f} MB)")
+            
             with open(pkl_file_path, 'rb') as f:
                 model = pickle.load(f)
             
-            print(f"✅ {model_filename} loaded successfully")
+            print(f"✅ {model_filename} loaded successfully from volume")
             return model
             
         except Exception as e:
             print(f"❌ Error loading {model_filename}: {e}")
             return None
     
-    
+    def check_volume_status(self):
+        """Debug method to check volume status"""
+        volume_path = '/data'
+        local_path = os.path.join(settings.BASE_DIR, 'API_User', 'data')
+        
+        status = {
+            'volume_exists': os.path.exists(volume_path),
+            'volume_writable': os.access(volume_path, os.W_OK) if os.path.exists(volume_path) else False,
+            'local_exists': os.path.exists(local_path),
+            'current_data_dir': self.get_data_directory()
+        }
+        
+        if os.path.exists(volume_path):
+            try:
+                status['volume_contents'] = os.listdir(volume_path)
+            except:
+                status['volume_contents'] = 'Permission denied'
+        
+        print("Volume Status:", status)
+        return status
     
     def get_personalized_recommendations(self, user_id, num_recommendations=10):
         """Use SVD++ for personalized recommendations"""

@@ -3,6 +3,7 @@ from django.shortcuts import render
 from rest_framework import viewsets
 from rest_framework.response import Response
 from rest_framework.decorators import action
+from rest_framework.decorators import api_view
 from .models import Product, Category, ProductImage, User, Review
 from API_User.services import recommendation_service
 from .serializers import (
@@ -232,6 +233,12 @@ def predict_rating(request, user_id, product_id):
             
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+    
+@api_view(['GET'])
+def volume_status(request):
+    """Check volume mount status"""
+    status = recommendation_service.check_volume_status()
+    return Response(status)
 
 def compare_models(request, user_id, product_id):
     """Compare predictions from both models"""
