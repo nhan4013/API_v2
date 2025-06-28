@@ -1,2 +1,2 @@
-release: python setup_volume.py
+release: python API_User/setup_volume.py
 web: gunicorn ecommerce_db.wsgi --log-file -
